@@ -1,5 +1,5 @@
 # ================= 第一阶段：构建 Maven 项目 =================
-FROM   maven:3.9.12-amazoncorretto-17 AS build
+FROM   docker.1ms.run/maven:3.9.12-amazoncorretto-17 AS build
 
 WORKDIR /workspace/app
 COPY settings-docker.xml /usr/share/maven/ref/settings-docker.xml
@@ -16,7 +16,7 @@ RUN mvn clean package -Dmaven.test.skip=true -P${ENV} -B \
    -s /usr/share/maven/ref/settings-docker.xml
 
 # ================= 第二阶段：运行环境 =================
-FROM amazoncorretto:17.0.17-alpine3.21
+FROM docker.1ms.run/amazoncorretto:17.0.17-alpine3.21
 
 # 设置工作目录
 WORKDIR /app
