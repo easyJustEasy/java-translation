@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: java-translation
+llama:
+  server-url: http://localhost:9000

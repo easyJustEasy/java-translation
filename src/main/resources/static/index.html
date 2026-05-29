@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>翻译器</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f4f8;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .card {
+            max-width: 1200px;
+            width: 100%;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.1);
+            padding: 24px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sub {
+            color: #4a6a85;
+            margin-bottom: 24px;
+            border-left: 4px solid #3b82f6;
+            padding-left: 12px;
+        }
+        .lang-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+            align-items: flex-end;
+        }
+        .lang-box {
+            flex: 1;
+            min-width: 150px;
+        }
+        label {
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #1e293b;
+            display: block;
+            margin-bottom: 6px;
+        }
+        select, button {
+            padding: 10px 14px;
+            border-radius: 60px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        select {
+            width: 100%;
+        }
+        .swap-btn {
+            background: #eef2ff;
+            border: none;
+            padding: 10px 18px;
+            font-size: 1.2rem;
+        }
+        .panels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .panel {
+            flex: 1;
+            background: #fafcff;
+            border-radius: 24px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 14px 20px;
+            background: #f8fafc;
+            font-weight: 600;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+        }
+        textarea {
+            width: 100%;
+            min-height: 220px;
+            padding: 16px 20px;
+            border: none;
+            font-family: monospace;
+            font-size: 1rem;
+            resize: vertical;
+            outline: none;
+            background: white;
+        }
+        textarea[readonly] {
+            background: #fefce8;
+        }
+        .actions {
+            padding: 12px 20px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-icon {
+            background: #f1f5f9;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 60px;
+            font-weight: bold;
+            font-size: 1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            opacity: 0;
+            transition: 0.2s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .toast.show { opacity: 1; }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 24px;
+            color: #5b6e8c;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>📋 私有翻译</h1>
+
+    <div class="lang-bar">
+        <div class="lang-box">
+            <label>源语言</label>
+            <select id="sourceLang">
+                <option value="英语">英语</option>
+                <option value="中文" selected>中文</option>
+                <option value="日语">日语</option>
+                <option value="韩语">韩语</option>
+                <option value="法语">法语</option>
+                <option value="德语">德语</option>
+                <option value="西班牙语">西班牙语</option>
+            </select>
+        </div>
+        <button id="swapBtn" class="swap-btn">⇄ 互换</button>
+        <div class="lang-box">
+            <label>目标语言</label>
+            <select id="targetLang">
+                <option value="英语" selected>英语</option>
+                <option value="中文" >中文</option>
+                <option value="日语">日语</option>
+                <option value="韩语">韩语</option>
+                <option value="法语">法语</option>
+                <option value="德语">德语</option>
+                <option value="西班牙语">西班牙语</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="panels">
+        <div class="panel">
+            <div class="panel-header">
+                <span>📝 原文</span>
+                <span id="inputCounter">0 字符</span>
+            </div>
+            <textarea id="inputText" placeholder="输入要翻译的文本..."></textarea>
+            <div class="actions">
+                <button id="clearBtn" class="btn-icon">🧹 清空</button>
+                <button id="speakSrcBtn" class="btn-icon">🔊 朗读原文</button>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">
+                <span>✨ 译文</span>
+                <span id="outputCounter">0 字符</span>
+            </div>
+            <textarea id="outputText" readonly placeholder="翻译结果将显示在这里..."></textarea>
+            <div class="actions">
+                <button id="copyBtn" class="btn-icon">📋 复制译文</button>
+                <button id="speakTgtBtn" class="btn-icon">🔊 朗读译文</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 16px;">
+        <button id="translateBtn" class="btn-primary">🚀 立即翻译</button>
+    </div>
+</div>
+<div id="toast" class="toast">✅ 已复制</div>
+
+<script>
+    // ========== 配置你的接口地址 ==========
+    const API_BASE_URL = "/api/translate";   // 后端POST接口地址
+
+    // DOM 元素
+    const sourceLangSelect = document.getElementById('sourceLang');
+    const targetLangSelect = document.getElementById('targetLang');
+    const inputTextarea = document.getElementById('inputText');
+    const outputTextarea = document.getElementById('outputText');
+    const translateBtn = document.getElementById('translateBtn');
+    const swapBtn = document.getElementById('swapBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const speakSrcBtn = document.getElementById('speakSrcBtn');
+    const speakTgtBtn = document.getElementById('speakTgtBtn');
+    const inputCounter = document.getElementById('inputCounter');
+    const outputCounter = document.getElementById('outputCounter');
+    const toast = document.getElementById('toast');
+
+    function showMessage(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    function updateCounters() {
+        inputCounter.innerText = inputTextarea.value.length + ' 字符';
+        outputCounter.innerText = outputTextarea.value.length + ' 字符';
+    }
+
+    // 调用你的接口进行翻译 (POST 表单提交)
+    async function translateText() {
+        const text = inputTextarea.value.trim();
+        if (!text) {
+            showMessage("请输入要翻译的文本");
+            return;
+        }
+        const source = sourceLangSelect.value;
+        const target = targetLangSelect.value;
+
+        // 显示加载状态
+        translateBtn.disabled = true;
+        translateBtn.innerHTML = "⏳ 翻译中...";
+
+        try {
+            // 构建 POST 表单数据 (application/x-www-form-urlencoded)
+            const formData = new URLSearchParams();
+            formData.append('text', text);
+            formData.append('sourceLanguage', source);
+            formData.append('targetLanguage', target);
+
+            const response = await fetch(API_BASE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            // 处理响应（根据后端实际返回格式调整）
+            const contentType = response.headers.get("content-type");
+            let translated = "";
+            if (contentType && contentType.includes("application/json")) {
+                const data = await response.json();
+                // 假设返回的 JSON 包含 translation 字段，根据实际情况修改
+                translated = data.translation || data.data || data.result || JSON.stringify(data);
+            } else {
+                translated = await response.text();
+            }
+            outputTextarea.value = translated;
+            updateCounters();
+            showMessage("翻译完成");
+        } catch (error) {
+            console.error(error);
+            outputTextarea.value = "❌ 翻译请求失败: " + error.message;
+            showMessage("接口调用失败");
+        } finally {
+            translateBtn.disabled = false;
+            translateBtn.innerHTML = "🚀 立即翻译";
+        }
+    }
+
+    // 互换语言和文本
+    function swapLanguages() {
+        const srcLang = sourceLangSelect.value;
+        const tgtLang = targetLangSelect.value;
+        sourceLangSelect.value = tgtLang;
+        targetLangSelect.value = srcLang;
+        // 互换文本框内容
+        const srcText = inputTextarea.value;
+        const tgtText = outputTextarea.value;
+        inputTextarea.value = tgtText;
+        outputTextarea.value = "";
+        updateCounters();
+        showMessage("已互换语言");
+        if (inputTextarea.value.trim()) {
+            translateText();
+        }
+    }
+
+    function clearInput() {
+        inputTextarea.value = "";
+        outputTextarea.value = "";
+        updateCounters();
+        showMessage("已清空");
+    }
+
+    async function copyOutput() {
+        const text = outputTextarea.value;
+        if (!text) {
+            showMessage("没有译文可复制");
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(text);
+            showMessage("✅ 译文已复制");
+        } catch (err) {
+            showMessage("复制失败");
+        }
+    }
+    // ---------- 朗读功能增强版 ----------
+    let currentUtterance = null;
+    const langMap = {
+        "英语": "en",
+        "中文": "zh-CN",
+        "日语": "ja",
+        "韩语": "ko",
+        "法语": "fr",
+        "德语": "de",
+        "西班牙语": "es"
+    };
+    function speakText(text, lang) {
+        if (!text || text.trim() === "") {
+            showMessage("没有文本可朗读");
+            return;
+        }
+
+        // 停止当前正在播放的语音
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        const langCode = langMap[lang]
+        // 设置语言（优先使用传入的 langCode）
+        utterance.lang = langCode;
+
+        // 可选：调整语速、音调 (范围 0.1~10)
+        utterance.rate = 0.9;   // 稍慢，更清晰
+        utterance.pitch = 1.0;
+        utterance.volume = 1;
+        utterance.onerror = (event) => {
+            if (event.error === 'interrupted') {
+                // 忽略中断错误，这是预期行为
+                console.log("语音被中断（主动取消）");
+                return;
+            }
+            console.error("语音播放出错", event);
+            showMessage("朗读失败: " + event.error);
+        };
+
+        utterance.onend = () => {
+            currentUtterance = null;
+        };
+
+        // 4. 延迟一小段时间再播放，确保 cancel 完全生效（避免竞态）
+        setTimeout(() => {
+            // 可选：匹配最佳语音
+            const voices = window.speechSynthesis.getVoices();
+            const matchedVoice = voices.find(voice => voice.lang.startsWith(langCode.split('-')[0]));
+            if (matchedVoice) {
+                utterance.voice = matchedVoice;
+            }
+            window.speechSynthesis.speak(utterance);
+            currentUtterance = utterance;
+        }, 50);
+
+    }
+
+    // 为朗读原文和译文增加交互锁（避免第一次点击无效）
+    let speechUnlocked = false;
+    function unlockSpeech() {
+        if (!speechUnlocked && window.speechSynthesis) {
+            // 播放一个极短的静音片段以解锁音频上下文
+            const dummy = new SpeechSynthesisUtterance('');
+            dummy.lang = 'en-US';
+            window.speechSynthesis.speak(dummy);
+            speechUnlocked = true;
+        }
+    }
+
+    // 修改原来的 speakSource 和 speakTarget
+    function speakSource() {
+        unlockSpeech();
+        speakText(inputTextarea.value, sourceLangSelect.value);
+    }
+    function speakTarget() {
+        unlockSpeech();
+        speakText(outputTextarea.value, targetLangSelect.value);
+    }
+
+    // 在页面加载后绑定一个全局点击事件，自动解锁（可选）
+    document.body.addEventListener('click', () => {
+        unlockSpeech();
+    }, { once: true });  // 只触发一次即可
+
+    // 事件绑定
+    inputTextarea.addEventListener('input', updateCounters);
+    translateBtn.addEventListener('click', translateText);
+    swapBtn.addEventListener('click', swapLanguages);
+    clearBtn.addEventListener('click', clearInput);
+    copyBtn.addEventListener('click', copyOutput);
+    speakSrcBtn.addEventListener('click', speakSource);
+    speakTgtBtn.addEventListener('click', speakTarget);
+
+    sourceLangSelect.addEventListener('change', () => { if (inputTextarea.value.trim()) translateText(); });
+    targetLangSelect.addEventListener('change', () => { if (inputTextarea.value.trim()) translateText(); });
+
+    // 示例默认文本
+    inputTextarea.value = "为中华崛起而读书，实现中华民族伟大复兴";
+    updateCounters();
+    // 首次自动翻译（可选，如果需要启用则去掉注释）
+    // translateText();
+</script>
+</body>
+</html>
