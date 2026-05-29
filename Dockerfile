@@ -20,14 +20,7 @@ FROM amazoncorretto:17.0.17-alpine3.21
 
 # 设置工作目录
 WORKDIR /app
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-RUN apk add --no-cache \
-    ttf-dejavu \
-    fontconfig
-
-# 可选：重建字体缓存（通常非必需，但更保险）
-RUN fc-cache -fv
 # 从构建阶段复制 JAR 文件
 COPY --from=build /workspace/app/target/java-translation.jar ./app.jar
 ENV PORT  7006
