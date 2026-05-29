@@ -1,0 +1,15 @@
+services:
+  translation:
+      build:
+        context: ./
+        dockerfile: Dockerfile
+      container_name: translation
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
+      ports:
+        - "7006:7006"
+      environment:
+        TZ: Asia/Shanghai
+        JAVA_OPTS: -Xms512m -Xmx1024m
+      restart: on-failure:3
+
