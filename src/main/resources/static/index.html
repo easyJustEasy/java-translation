@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="baidu_union_verify" content="bb623f7a89c5a39d1b1db464670c2a8a">
     <title>翻译器</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -348,8 +349,19 @@
             showMessage("复制失败");
         }
     }
-    // ---------- 朗读功能增强版 ----------
+    // ---------- 朗读功能（Chrome 兼容修复版） ----------
+    // 修复要点（Chrome speechSynthesis 已知坑）：
+    // 1. 不用 dummy 解锁：首次点击时直接 speak 就是有效用户手势，dummy 反而
+    //    在 cancel 时污染引擎状态，导致紧接着的正文被 interrupted
+    // 2. speak 前 resume() 唤醒：Chrome 长时间不用 speechSynthesis 会"卡死"，
+    //    之后 speak 立即报 interrupted/not-allowed，resume 可唤醒
+    // 3. 不在 cancel 后 setTimeout speak：Chrome 取消后立刻 speak 新 utterance
+    //    是已知竞态，直接 speak 交给引擎内部队列更稳
+    // 4. getVoices 首次可能为空：监听 voiceschanged 预加载
+    // 5. 非主动的 interrupted 自动重试一次（Chrome 偶发）
     let currentUtterance = null;
+    let retriedSpeak = false;   // 是否已自动重试过
+    let userRequested = false;  // 用户是否刚点了新朗读（旧 utterance 中断属预期）
     const langMap = {
         "英语": "en",
         "中文": "zh-CN",
@@ -359,30 +371,57 @@
         "德语": "de",
         "西班牙语": "es"
     };
+
+    // 预加载语音列表（Chrome 首次 getVoices 可能为空，等 voiceschanged）
+    if (window.speechSynthesis) {
+        window.speechSynthesis.addEventListener('voiceschanged', function () {
+            window.__voicesReady = true;
+        });
+    }
+
     function speakText(text, lang) {
         if (!text || text.trim() === "") {
             showMessage("没有文本可朗读");
             return;
         }
 
-        // 停止当前正在播放的语音
+        const langCode = langMap[lang] || "zh-CN";
+
+        // 停止当前正在播放的语音（同步 API）
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
+            // Chrome 卡死唤醒
+            window.speechSynthesis.resume();
         }
 
         const utterance = new SpeechSynthesisUtterance(text);
-        const langCode = langMap[lang]
-        // 设置语言（优先使用传入的 langCode）
         utterance.lang = langCode;
-
-        // 可选：调整语速、音调 (范围 0.1~10)
         utterance.rate = 0.9;   // 稍慢，更清晰
         utterance.pitch = 1.0;
         utterance.volume = 1;
+
+        // 匹配最佳语音（voices 可能尚未就绪，就绪后 speak 会自动用默认语音）
+        try {
+            const voices = window.speechSynthesis.getVoices();
+            const matchedVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(langCode.split('-')[0].toLowerCase()));
+            if (matchedVoice) {
+                utterance.voice = matchedVoice;
+            }
+        } catch (e) { /* 忽略 */ }
+
         utterance.onerror = (event) => {
-            if (event.error === 'interrupted') {
-                // 忽略中断错误，这是预期行为
-                console.log("语音被中断（主动取消）");
+            currentUtterance = null;
+            if (event.error === 'interrupted' || event.error === 'canceled') {
+                // 用户主动点了新朗读 → 新 utterance 已接管，静默
+                if (userRequested) {
+                    return;
+                }
+                // 非主动中断：Chrome 偶发，自动重试一次
+                if (!retriedSpeak) {
+                    retriedSpeak = true;
+                    console.log("语音被中断，自动重试一次");
+                    setTimeout(function () { speakText(text, lang); }, 300);
+                }
                 return;
             }
             console.error("语音播放出错", event);
@@ -391,48 +430,23 @@
 
         utterance.onend = () => {
             currentUtterance = null;
+            retriedSpeak = false;
         };
 
-        // 4. 延迟一小段时间再播放，确保 cancel 完全生效（避免竞态）
-        setTimeout(() => {
-            // 可选：匹配最佳语音
-            const voices = window.speechSynthesis.getVoices();
-            const matchedVoice = voices.find(voice => voice.lang.startsWith(langCode.split('-')[0]));
-            if (matchedVoice) {
-                utterance.voice = matchedVoice;
-            }
-            window.speechSynthesis.speak(utterance);
-            currentUtterance = utterance;
-        }, 50);
-
+        currentUtterance = utterance;
+        retriedSpeak = false;
+        window.speechSynthesis.speak(utterance);
     }
 
-    // 为朗读原文和译文增加交互锁（避免第一次点击无效）
-    let speechUnlocked = false;
-    function unlockSpeech() {
-        if (!speechUnlocked && window.speechSynthesis) {
-            // 播放一个极短的静音片段以解锁音频上下文
-            const dummy = new SpeechSynthesisUtterance('');
-            dummy.lang = 'en-US';
-            window.speechSynthesis.speak(dummy);
-            speechUnlocked = true;
-        }
-    }
-
-    // 修改原来的 speakSource 和 speakTarget
+    // 朗读原文/译文（用户手势内直接调用，无需 dummy 解锁）
     function speakSource() {
-        unlockSpeech();
+        userRequested = true;
         speakText(inputTextarea.value, sourceLangSelect.value);
     }
     function speakTarget() {
-        unlockSpeech();
+        userRequested = true;
         speakText(outputTextarea.value, targetLangSelect.value);
     }
-
-    // 在页面加载后绑定一个全局点击事件，自动解锁（可选）
-    document.body.addEventListener('click', () => {
-        unlockSpeech();
-    }, { once: true });  // 只触发一次即可
 
     // 事件绑定
     inputTextarea.addEventListener('input', updateCounters);
